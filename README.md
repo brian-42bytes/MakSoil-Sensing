@@ -7,4 +7,4 @@ Collects available NPK values and Logs them on a remote Database for visualisati
 4. MTN SIM card
 5. 18650 rechargable battery
 6. 18650 v3 battery charge shield bord
-![Set-Upvisual](https://raw.githubusercontent.com/brian-42bytes/MakSoil-Sensing/main/device-setup.jpg)
+![Set-Up-visual](20260419_134345.jpg)
