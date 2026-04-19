@@ -7,4 +7,4 @@ Collects available NPK values and Logs them on a remote Database for visualisati
 4. MTN SIM card
 5. 18650 rechargable battery
 6. 18650 v3 battery charge shield bord
-<img src="20260419_134345.jpg" alt="Device-setup" width="650" height="400">
+<img src="20260419_134345.jpg" alt="Device-setup" width="650" height="800">
