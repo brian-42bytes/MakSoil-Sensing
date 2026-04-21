@@ -15,7 +15,7 @@
 #define APN         "web.gprs.mtn.co.ug"
 
 const char* thingspeakHost = "api.thingspeak.com";
-String apiKey = "IVAWTICG5ZGIOUT2";        //Write API Key
+String apiKey = "IVAWTICG5ZGI***#";        //Write API Key
 
 const int TIME_ZONE_OFFSET = 3;   // UTC+3 EAT
 
