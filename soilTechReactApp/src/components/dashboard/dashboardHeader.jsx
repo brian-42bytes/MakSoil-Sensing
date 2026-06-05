@@ -1,6 +1,10 @@
 import React from "react";
+import {useState} from 'react'
 
-export default function DashboardHeader() {
+export default function DashboardHeader({setShowMap, map}) {
+function handleShowMap(){
+  setShowMap(prev=>!prev)
+}
   return (
     <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
       <div>
@@ -13,17 +17,17 @@ export default function DashboardHeader() {
         </h1>
 
         <p className="mt-2 max-w-3xl text-slate-600">
-          A one-page interface for receiving and displaying live agricultural
+          Web interface for receiving and displaying live agricultural
           sensor data including NPK values and spatial coordinates.
         </p>
       </div>
 
       <div className="flex flex-row gap-2">
-        <button className="flex rounded-2xl bg-slate-900 px-4 py-2 text-white shadow hover:bg-slate-800">
+        <button disabled className="flex rounded-2xl bg-slate-900 px-4 py-2 text-white shadow hover:bg-slate-800  disabled:bg-slate-300 disabled:text-slate-500">
           Refresh Page
         </button>
-        <button className="flex rounded-2xl border border-slate-300 bg-white px-4 py-2 text-slate-900 hover:bg-slate-50">
-          Export Table
+        <button onClick={handleShowMap} className="flex rounded-2xl border border-slate-300 bg-white px-4 py-2 text-slate-900 hover:bg-slate-50">
+          {map? "Close Map": "Show Map"}
         </button>
       </div>
     </div>
