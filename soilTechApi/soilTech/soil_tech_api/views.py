@@ -1,4 +1,5 @@
 from django.shortcuts import render
+import pandas as pd
 
 # this view recieves the post request from the react app and returns the predictions
 import os
@@ -27,16 +28,15 @@ class PredictCropView(APIView):
         if serializer.is_valid():
             data = serializer.validated_data
 
-            features = np.array([[
-                data["nitrogen"],
-                data["phosphorus"],
-                data["potassium"],
-                data["pH"],
-            ]])
+           
+            features = pd.DataFrame([{
+                "N": data["nitrogen"],
+                "P": data["phosphorus"],
+                "K": data["potassium"],
+                "pH": data["pH"],
+            }])
 
-            
-            pred = model.predict(features)[0]
-            crop = pred
+            crop = model.predict(features)[0]
 
             result = {
                 "predicted_crop": crop
@@ -61,4 +61,29 @@ class PredictCropView(APIView):
 
         return Response(result, status=status.HTTP_200_OK)
 
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)\\
+
+from rest_framework.decorators import api_view
+@api_view(["POST"])
+def get_crop_recommendation(request):
+
+    nitrogen = float(request.data.get('nitrogen'))
+    phosphorus = float(request.data.get('phosphorus'))
+    potassium = float(request.data.get('potassium'))
+    pH = float(request.data.get('pH'))
+    crop = request.data.get('crop')
+
+    data=request.data
+
+    mineral_fertilizer = f"Apply balanced NPK fertilizer suitable for {crop}."
+    organic_fertilizer = "Use compost or well-decomposed manure."
+    cultural_practices = "Practice crop rotation and cover cropping."
+
+    recommendation = {
+        "mineral_fertilizer": mineral_fertilizer,
+        "organic_fertilizer": organic_fertilizer,
+        "cultural_practices": cultural_practices
+    }
+    print(data)
+
+    return Response(recommendation, status=status.HTTP_200_OK)

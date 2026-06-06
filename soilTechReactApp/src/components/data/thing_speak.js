@@ -22,6 +22,7 @@ export async function getSensorData() {
       phosphorus: item.field2,
       potassium: item.field3,
       pH: item.field4,
+      
     }));
 
     return cleaned;
@@ -31,3 +32,30 @@ export async function getSensorData() {
   }
 }
 
+export async function getSensorSample(sampleId) {
+  try {
+    const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds/${sampleId}.json?api_key=${READ_API_KEY}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch sensor sample");
+    }
+
+    const item = await response.json();
+
+    if (!item || !item.entry_id) { return null; }
+
+    return {
+      entry_id: item.entry_id,
+      created_at: item.created_at,
+      nitrogen: item.field1,
+      phosphorus: item.field2,
+      potassium: item.field3,
+      pH: item.field4,
+    };
+  } catch (error) {
+    console.error("Error fetching sensor sample:", error);
+    return null;
+  }
+}
