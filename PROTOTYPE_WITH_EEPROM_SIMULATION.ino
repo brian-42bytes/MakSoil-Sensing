@@ -2,7 +2,6 @@
 #include <Arduino.h>
 #include "SD.h"
 #include "SPI.h"
-//#include "esp_task_wdt.h"
 
 #define TINY_GSM_MODEM_SIM7000
 
@@ -21,8 +20,7 @@
 #define CONFIG_ADDR      0
 const char* languages[] =  {
   "ENGLISH",
-  "KISWAHILI",
-  "LUGANDA"
+  "LANGI"
 };
 
 struct Config {
@@ -46,8 +44,9 @@ const char* SENSOR_ID = "CSP001";
 const long CHANNEL_ID = 3347358;
 #define APN         "web.gprs.mtn.co.ug"
 
-const char* thingspeakHost = "api.thingspeak.com";
-String apiKey = "IVAWTICG5ZGIOUT2";
+const char* apiHost = "cropisfm.onrender.com";
+const char* apiPath = "/api/load_sample_csv";
+String apiKey = "ayqDIURT.pU4QKrAObn8O5ZEgbonC9u9XKGPEcIFP";
 
 // ================== OBJECTS ==================
 HardwareSerial modbus(1);
@@ -59,7 +58,7 @@ uint8_t response[32];
 uint8_t cmd[8] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x07, 0x04, 0x08};
 
 const int TIME_ZONE_OFFSET = 3;
-const int BUFFER_SIZE = 10;
+const int BUFFER_SIZE = 5;
 
 struct Reading {
   float moisture, temperature, ec, ph;
@@ -87,15 +86,6 @@ void setup() {
   modbus.begin(SENSOR_BAUD, SERIAL_8N1, SENSOR_RX, SENSOR_TX);
   pinMode(RE_DE_PIN, OUTPUT);
   digitalWrite(RE_DE_PIN, LOW);
-
-  /*/ Watchdog - Initialize only once
-  esp_task_wdt_config_t wdt_config = {
-    .timeout_ms = 30000,
-    .idle_core_mask = 0,
-    .trigger_panic = true
-  };
-  esp_task_wdt_init(&wdt_config);
-  esp_task_wdt_add(NULL);*/
 
   // SD Card
   SPI.begin(14, 2, 15, SD_CS);
@@ -131,14 +121,33 @@ void setup() {
   // Load settings from EEPROM
   loadConfig();
 
-  Serial.println("=== System Ready - Collecting 10 readings ===");
+  Serial.println("=== System Ready - Collecting 5 readings ===");
 }
-
+int count = 0;
 // ================== LOOP ==================
-void loop() {
-  // esp_task_wdt_reset();
-  // yield();
-
+void loop() {/*
+  getGPS();
+  if (hasGPSFix) {
+    Serial.print(lat);
+    Serial.print(", "); 
+    Serial.println(lon);
+    Serial.print(alt);
+    Serial.println("m");
+    Serial.print(local_hour);
+    Serial.print(":");
+    Serial.print(minute);
+    Serial.print(" ");
+    Serial.print(local_day);
+    Serial.print("-");
+    Serial.print(local_month);
+    Serial.print("-");
+    Serial.println(local_year);
+  } else {
+    count++;
+    Serial.println("noGPS,noGPS,noGPS");
+    Serial.print(10*count);
+    Serial.println("Seconds passed.");
+  }*/
   takeOneReading();
 
   if (bufferIndex >= BUFFER_SIZE) {
@@ -150,7 +159,7 @@ void loop() {
     bufferIndex = 0;
   }
 
-  checkIncomingSMS();     // ← Now called every loop
+  checkIncomingSMS();   
 
   delay(2000);
 }
@@ -189,9 +198,9 @@ void takeOneReading() {
 
 void getGPS() {
   modem.sendAT("+SGPIO=0,4,1,1");
-  modem.waitResponse(3000);
+  modem.waitResponse(6000);
   modem.enableGPS();
-  delay(6000);
+  delay(2000);
 
   hasGPSFix = modem.getGPS(&lat, &lon, nullptr, &alt, nullptr, nullptr, nullptr,
                           &currentYear, &currentMonth, &currentDay, &currentHour, &minute, nullptr);
@@ -242,12 +251,14 @@ void processBatch() {
   avgK = sumK / count;
   avgFertility = sumF / count;
 
-  Serial.println("\n=== 10 READINGS PROCESSED ===");
+  Serial.println("\n=== 5 READINGS PROCESSED ===");
   Serial.printf("Moisture: %.1f%% | Temp: %.1f°C | pH: %.1f | Fertility: %.1f%%\n", 
                 avgMoisture, avgTemp, avgPH, avgFertility);
 
   saveBatchToSD();
-  sendAveragedToThingSpeak();
+  if (sendToAPI()){
+    Serial.println("DATA sentnt well To API!");
+  }
 }
 
 void saveBatchToSD() {
@@ -281,28 +292,80 @@ void saveBatchToSD() {
   }
 }
 
-void sendAveragedToThingSpeak() {
-  if (!client.connect(thingspeakHost, 80)) return;
-
-  String url = "/update?api_key=" + apiKey +
-               "&field1=" + String(avgN) +
-               "&field2=" + String(avgP) +
-               "&field3=" + String(avgK) +
-               "&field4=" + String(avgPH,1) +
-               "&field5=" + String(avgMoisture,1) +
-               "&field6=" + String(avgEC) +
-               "&field7=" + String(avgFertility,1) +
-               "&field8=" + String(alt);
-
-  if (lat != 0 && lon != 0) {
-    url += "&lat=" + String(lat,6) + "&long=" + String(lon,6);
+bool sendToAPI() {
+  if (!sdOK) {
+    Serial.println("Check SD Card");
+    return false;
   }
 
-  client.print(String("GET ") + url + " HTTP/1.1\r\nHost: " + thingspeakHost + "\r\nConnection: close\r\n\r\n");
-  delay(2000);
-  client.stop();
+  char filename[30];
+  sprintf(filename, "/soil_%04d%02d.csv", 2026, 5);   // Adjust date from GPS
 
-  Serial.println("✅ Averaged data sent to ThingSpeak");
+  File csvFile = SD.open(filename, FILE_READ);
+  if (!csvFile) {
+    Serial.println("Can\'t open CSV file");
+    return false;
+  }
+
+  Serial.println("Uploading to API...");
+
+  if (client.connect(apiHost, 80)) {
+    String boundary = "ESP32Boundary123456789abcdef";
+
+    String head = "--" + boundary + "\r\n";
+    head += "Content-Disposition: form-data; name=\"file\"; filename=\"" + String(filename) + "\"\r\n";
+    head += "Content-Type: text/csv\r\n\r\n";
+
+    String tail = "\r\n--" + boundary + "--\r\n";
+
+    int contentLength = head.length() + csvFile.size() + tail.length();
+
+    // Send request
+    client.print("POST " + String(apiPath) + " HTTP/1.1\r\n");
+    client.print("Host: " + String(apiHost) + "\r\n");
+    client.print("Authorization: Bearer " + apiKey + "\r\n");   // Using your key
+    client.print("Content-Type: multipart/form-data; boundary=" + boundary + "\r\n");
+    client.print("Content-Length: " + String(contentLength) + "\r\n\r\n");
+
+    client.print(head);
+
+    // Send file
+    while (csvFile.available()) {
+      client.write(csvFile.read());
+    }
+
+    client.print(tail);
+    client.flush();
+
+    delay(4000); 
+
+    // Read server response
+    String response = "";
+    while (client.available()) {
+      response += (char)client.read();
+    }
+
+    Serial.println("API Response:");
+    Serial.println(response.substring(0, 400));
+
+    client.stop();
+    csvFile.close();
+
+    if (response.indexOf("200") != -1 || response.indexOf("success") != -1) {
+      Serial.println("✅ CSV successfully uploaded to your API!");
+      return true;
+    } else {
+      Serial.println("Upload fail");
+      return false;
+    }
+  } else {
+    Serial.println("Could not connect to API");
+    csvFile.close();
+    return false;
+  }
+
+
+  Serial.println("✅ Data sent!");
   sendSMSAlert();
 }
 
@@ -310,12 +373,12 @@ void sendSMSAlert() {
   String msg = "Soil Data Updated!\n";
   msg += "Fertility: " + String(avgFertility,1) + "%\n";
   msg += "Moisture: " + String(avgMoisture,1) + "% | pH: " + String(avgPH,1) + "\n";
-  msg += "View: https://thingspeak.com/channels/" + String(CHANNEL_ID);
+  msg += "View: https://cropisfm.onrender.com/api/load_sample_csv" + String(SENSOR_ID);
 
   if (modem.sendSMS(contactPhone, msg)) {
     Serial.println("✅ SMS Sent Successfully!");
   } else {
-    Serial.println("❌ SMS failed");
+    Serial.println("SMS failed");
   }
 }
 
@@ -424,7 +487,7 @@ void setConfig() {
 
           modem.sendSMS(contactPhone, reply);  
         } else {
-          Serial.println("❌ Invalid message format");
+          Serial.println("Invalid message format");
           modem.sendSMS(contactPhone, "Invalid format. Use:\nName\nLanguage\n+256xxxxxxxxx");
         }
       }
