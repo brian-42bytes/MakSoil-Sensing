@@ -9,20 +9,15 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.decorators import api_view , permission_classes
-
-# project folders
 from .serializers import CropPredictionSerializer
-from soilsensor_app.models import Sensor, Sample
 
-MODEL_PATH = os.path.join(settings.BASE_DIR, "soil_tech_api", "mL_models", "Crop_Recommendation_DT_Model2.pkl")
+MODEL_PATH = os.path.join(settings.BASE_DIR, "soil_tech_api", "mL_models", "crop_recommendation_DT_model.pkl")
 # LABEL_ENCODER_PATH = os.path.join(settings.BASE_DIR, "sensor_api", "ml", "label_encoder.pkl")
 
 model = joblib.load(MODEL_PATH)
 # label_encoder = joblib.load(LABEL_ENCODER_PATH)
 
 class PredictCropView(APIView):
-    permission_classes=[]
     def get(self, request):
         return Response({"message": "This endpoint is under construction. Please check back later."}, status=status.HTTP_200_OK)
     def post(self, request):
@@ -68,49 +63,27 @@ class PredictCropView(APIView):
 
         # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)\\
 
-
-# get the smaple data csv file from the sensor, destructure it and save it in the db.
+from rest_framework.decorators import api_view
 @api_view(["POST"])
-@permission_classes([])
-def process_sample_csv(request):
-    csv_file = request.FILES.get('csv_file')
+def get_crop_recommendation(request):
 
-    if not csv_file:
-        return Response({"error": "No CSV file provided."}, status=status.HTTP_400_BAD_REQUEST)
+    nitrogen = float(request.data.get('nitrogen'))
+    phosphorus = float(request.data.get('phosphorus'))
+    potassium = float(request.data.get('potassium'))
+    pH = float(request.data.get('pH'))
+    crop = request.data.get('crop')
 
-    try:
-        # Read the CSV file into a DataFrame
-        df = pd.read_csv(csv_file)
+    data=request.data
 
-        # Check if the required columns are present
-        required_columns = ['sensor_id', 'nitrogen', 'phosphorus', 'potassium', 'pH', 'latitude', 'longitude']
-        if not all(col in df.columns for col in required_columns):
-            return Response({"error": f"CSV file must contain the following columns: {', '.join(required_columns)}"}, status=status.HTTP_400_BAD_REQUEST)
+    mineral_fertilizer = f"Apply balanced NPK fertilizer suitable for {crop}."
+    organic_fertilizer = "Use compost or well-decomposed manure."
+    cultural_practices = "Practice crop rotation and cover cropping."
 
-        # Process each row in the DataFrame
-        for _, row in df.iterrows():
-            sensor_id = row['sensor_id']
-            nitrogen = row['nitrogen']
-            phosphorus = row['phosphorus']
-            potassium = row['potassium']
-            pH = row['pH']
-            latitude = row['latitude']
-            longitude = row['longitude']
-            
-            Sample.objects.create(
-                sensor=Sensor.objects.get(id=sensor_id),
-                nitrogen=nitrogen,
-                phosphorus=phosphorus,
-                potassium=potassium,
-                pH=pH,
-                latitude=latitude,
-                longitude=longitude
-            )
+    recommendation = {
+        "mineral_fertilizer": mineral_fertilizer,
+        "organic_fertilizer": organic_fertilizer,
+        "cultural_practices": cultural_practices
+    }
+    print(data)
 
-            # Here you can save the data to your database or perform any other processing as needed
-
-        return Response({"message": "CSV file processed successfully."}, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+    return Response(recommendation, status=status.HTTP_200_OK)
